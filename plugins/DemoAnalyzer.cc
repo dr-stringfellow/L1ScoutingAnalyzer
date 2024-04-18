@@ -17,6 +17,7 @@
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 #include "TH1D.h"
 #include "TFile.h"
+#include "TTree.h"
 #include "TDirectory.h"
 
 // L1 scouting 
@@ -54,6 +55,7 @@ private:
   void endJob() override;
 
   void processDataBx(
+    unsigned orbitNum,
     unsigned bx,
     const edm::Handle<MuonOrbitCollection>& muonsCollection,
     const edm::Handle<JetOrbitCollection>& jetsCollection,
@@ -69,8 +71,6 @@ private:
   edm::EDGetTokenT<OrbitCollection<l1ScoutingRun3::Tau>> tausTokenData_;
   edm::EDGetTokenT<OrbitCollection<l1ScoutingRun3::BxSums>> bxSumsTokenData_;
 
-  // the root file service to handle the output file
-  edm::Service<TFileService> fs;
 
   // l1t standard data format
   std::vector<l1t::Jet> l1jets_;
@@ -81,6 +81,17 @@ private:
 
   // map containing TH1D histograms
   std::map<std::string, TH1D*> m_1dhist_;
+
+  TTree* tree;
+
+  Int_t nJet;
+  Int_t orbit;
+  Int_t bxid;
+  vector<Float16_t> Jet_pt;
+  vector<Float16_t> Jet_eta;
+  vector<Float16_t> Jet_phi;
+  vector<Float16_t> Jet_e;  
+  
  };
 
 DemoAnalyzer::DemoAnalyzer(const edm::ParameterSet& iPSet)
@@ -90,7 +101,21 @@ DemoAnalyzer::DemoAnalyzer(const edm::ParameterSet& iPSet)
     tausTokenData_(consumes(iPSet.getParameter<edm::InputTag>("tausTag"))),
     bxSumsTokenData_(consumes(iPSet.getParameter<edm::InputTag>("bxSumsTag")))
   {
-  
+
+  // the root file service to handle the output file
+  edm::Service<TFileService> fs;
+
+  // Create the TTree
+  tree = fs->make<TTree>("events" , "events");
+
+  tree->Branch("orbit" ,   &orbit,    "orbit/i");
+  tree->Branch("bx" ,      &bxid,        "bx/i");
+  tree->Branch("nJet" ,    &nJet,      "nJet/i");
+  tree->Branch("Jet_pt" ,  &Jet_pt             );
+  tree->Branch("Jet_eta" , &Jet_eta            );
+  tree->Branch("Jet_phi" , &Jet_phi            );
+  tree->Branch("Jet_e" ,   &Jet_e              );
+
   // init internal containers for l1 objects
   l1muons_.reserve(8);
   l1jets_.reserve(12);
@@ -123,12 +148,13 @@ void DemoAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
   iEvent.getByToken(bxSumsTokenData_, bxSumsCollection); 
 
   // get orbit number orbit
-  // unsigned orbitNum = iEvent.id().event();
+  unsigned orbitNum = iEvent.id().event();
 
   // process all BX in orbit containing at least a Muon
   // getFilledBxs() returns the list of filled BX in the muon orbit collection
   for (const unsigned& bx : muonsCollection->getFilledBxs()) {
     processDataBx(
+	orbitNum,
         bx,
         muonsCollection,
         jetsCollection,
@@ -141,6 +167,7 @@ void DemoAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&) {
  }
 
 void DemoAnalyzer::processDataBx(
+    unsigned orbitNum,
     unsigned bx,
     const edm::Handle<MuonOrbitCollection>& muonsCollection,
     const edm::Handle<JetOrbitCollection>& jetsCollection,
@@ -148,7 +175,11 @@ void DemoAnalyzer::processDataBx(
     const edm::Handle<TauOrbitCollection>& tausCollection,
     const edm::Handle<BxSumsOrbitCollection>& bxSumsCollection
   ) {
-    
+
+
+    orbit = orbitNum;
+    bxid = bx;
+  
     // get iterator for the current BX
     const auto& jets = jetsCollection->bxIterator(bx);
     const auto& eGammas = eGammasCollection->bxIterator(bx);
@@ -167,12 +198,29 @@ void DemoAnalyzer::processDataBx(
     l1sums_.clear();
     l1muons_.clear();
 
+    Jet_pt.clear();
+    Jet_eta.clear();
+    Jet_phi.clear();
+    Jet_e.clear();
+    
     for (const auto& muon : muons) {
       l1muons_.emplace_back(getL1TMuon(muon));
     }
+
+    int jet_counter = 0;
+    nJet = jets.size();
+      
     for (const auto& jet : jets) {
       l1jets_.emplace_back(getL1TJet(jet));
+      //std::cout << getL1TJet(jet) << std::endl;
+      Jet_pt.push_back(getL1TJet(jet).pt());
+      Jet_eta.push_back(getL1TJet(jet).eta());
+      Jet_phi.push_back(getL1TJet(jet).phi());
+      Jet_e.push_back(getL1TJet(jet).energy());
+      jet_counter++;
+      if (jet_counter > 1) break;
     }
+    
     for (const auto& egamma : eGammas) {
       l1egs_.emplace_back(getL1TEGamma(egamma));
     }
@@ -196,6 +244,10 @@ void DemoAnalyzer::processDataBx(
       m_1dhist_["MuonPt"]->Fill(muon.pt());
     }
 
+    if (nJet>1)
+      tree->Fill();
+
+    
     // collections are sorted based on the object Pt. For exampel, the leading muon Pt
     // can be obtained with l1muons_[0].pt()
     
