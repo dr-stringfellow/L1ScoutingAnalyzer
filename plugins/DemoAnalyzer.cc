@@ -91,6 +91,7 @@ private:
   vector<Float16_t> Jet_eta;
   vector<Float16_t> Jet_phi;
   vector<Float16_t> Jet_e;  
+  vector<Int_t> Jet_qual;
   
  };
 
@@ -108,13 +109,14 @@ DemoAnalyzer::DemoAnalyzer(const edm::ParameterSet& iPSet)
   // Create the TTree
   tree = fs->make<TTree>("events" , "events");
 
-  tree->Branch("orbit" ,   &orbit,    "orbit/i");
-  tree->Branch("bx" ,      &bxid,        "bx/i");
-  tree->Branch("nJet" ,    &nJet,      "nJet/i");
-  tree->Branch("Jet_pt" ,  &Jet_pt             );
-  tree->Branch("Jet_eta" , &Jet_eta            );
-  tree->Branch("Jet_phi" , &Jet_phi            );
-  tree->Branch("Jet_e" ,   &Jet_e              );
+  tree->Branch("orbit",    &orbit,    "orbit/i");
+  tree->Branch("bx",       &bxid,        "bx/i");
+  tree->Branch("nJet",     &nJet,      "nJet/i");
+  tree->Branch("Jet_pt",   &Jet_pt             );
+  tree->Branch("Jet_eta",  &Jet_eta            );
+  tree->Branch("Jet_phi",  &Jet_phi            );
+  tree->Branch("Jet_e",    &Jet_e              );
+  tree->Branch("Jet_qual", &Jet_qual           );
 
   // init internal containers for l1 objects
   l1muons_.reserve(8);
@@ -202,6 +204,7 @@ void DemoAnalyzer::processDataBx(
     Jet_eta.clear();
     Jet_phi.clear();
     Jet_e.clear();
+    Jet_qual.clear();
     
     for (const auto& muon : muons) {
       l1muons_.emplace_back(getL1TMuon(muon));
@@ -217,6 +220,7 @@ void DemoAnalyzer::processDataBx(
       Jet_eta.push_back(getL1TJet(jet).eta());
       Jet_phi.push_back(getL1TJet(jet).phi());
       Jet_e.push_back(getL1TJet(jet).energy());
+      Jet_qual.push_back(jet.hwQual());
       jet_counter++;
       if (jet_counter > 1) break;
     }
