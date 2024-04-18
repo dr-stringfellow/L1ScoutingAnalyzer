@@ -19,6 +19,7 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TDirectory.h"
+#include "TLorentzVector.h"
 
 // L1 scouting 
 #include "DataFormats/L1Scouting/interface/L1ScoutingMuon.h"
@@ -91,6 +92,10 @@ private:
   vector<Float16_t> Jet_eta;
   vector<Float16_t> Jet_phi;
   vector<Float16_t> Jet_e;  
+  Float16_t Dijet_deta;
+  Float16_t Dijet_pt;
+  Float16_t Dijet_eta;
+  Float16_t Dijet_m;
   vector<Int_t> Jet_qual;
   
  };
@@ -109,14 +114,18 @@ DemoAnalyzer::DemoAnalyzer(const edm::ParameterSet& iPSet)
   // Create the TTree
   tree = fs->make<TTree>("events" , "events");
 
-  tree->Branch("orbit",    &orbit,    "orbit/i");
-  tree->Branch("bx",       &bxid,        "bx/i");
-  tree->Branch("nJet",     &nJet,      "nJet/i");
-  tree->Branch("Jet_pt",   &Jet_pt             );
-  tree->Branch("Jet_eta",  &Jet_eta            );
-  tree->Branch("Jet_phi",  &Jet_phi            );
-  tree->Branch("Jet_e",    &Jet_e              );
-  tree->Branch("Jet_qual", &Jet_qual           );
+  tree->Branch("orbit",      &orbit,         "orbit/i");
+  tree->Branch("bx",         &bxid,             "bx/i");
+  tree->Branch("nJet",       &nJet,           "nJet/i");
+  tree->Branch("Jet_pt",     &Jet_pt                  );
+  tree->Branch("Jet_eta",    &Jet_eta                 );
+  tree->Branch("Jet_phi",    &Jet_phi                 );
+  tree->Branch("Jet_e",      &Jet_e                   );
+  tree->Branch("Jet_qual",   &Jet_qual                );
+  tree->Branch("Dijet_deta", &Dijet_deta              );
+  tree->Branch("Dijet_pt",   &Dijet_pt                );
+  tree->Branch("Dijet_eta",  &Dijet_eta               );
+  tree->Branch("Dijet_m",    &Dijet_m                 );
 
   // init internal containers for l1 objects
   l1muons_.reserve(8);
@@ -248,9 +257,24 @@ void DemoAnalyzer::processDataBx(
       m_1dhist_["MuonPt"]->Fill(muon.pt());
     }
 
-    if (nJet>1)
+    if (nJet>1){
+      //TLorentzVector j1 = TLorentzVector();
+      math::PtEtaPhiELorentzVectorF j1 = math::PtEtaPhiELorentzVectorF(Jet_pt[0],Jet_eta[0],Jet_phi[0],Jet_e[0]); 
+      math::PtEtaPhiELorentzVectorF j2 = math::PtEtaPhiELorentzVectorF(Jet_pt[1],Jet_eta[1],Jet_phi[1],Jet_e[1]); 
+      Dijet_pt = (j1+j2).Pt();
+      Dijet_eta = (j1+j2).Eta();
+      Dijet_m = (j1+j2).M();
+      Dijet_deta = Jet_eta[0]-Jet_eta[1];
+      std::cout << Dijet_pt << std::endl;
+      /*
+      TLorentzVector j1; j1.SetPtEtaPhiE(Jet_pt[0],Jet_eta[0],Jet_phi[0],Jet_e[0]);
+      TLorentzVector j2; j2.SetPtEtaPhiE(Jet_pt[1],Jet_eta[1],Jet_phi[1],Jet_e[1]);
+      Dijet_pt = (j1+j2).Pt();
+      Dijet_eta = (j1+j2).Eta();
+      Dijet_m = (j1+j2).M();
+      */
       tree->Fill();
-
+    }
     
     // collections are sorted based on the object Pt. For exampel, the leading muon Pt
     // can be obtained with l1muons_[0].pt()
